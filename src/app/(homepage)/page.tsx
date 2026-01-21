@@ -12,10 +12,12 @@ import {
   Clock,
   ChevronDown,
   LogIn,
-  UserPlus
+  UserPlus,
+  Lock
 } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useLanguage } from "@/components/providers/language-provider";
+import { LoginRequiredModal } from "@/components/ui/LoginRequiredModal";
 
 // Flag component for Vietnam
 const VietnamFlag = ({ className }: { className?: string }) => (
@@ -47,6 +49,7 @@ export default function Home() {
   const [isMuted, setIsMuted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLanguageOpen, setIsLanguageOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   
   const { isAuthenticated, logout } = useAuth();
   const { language, setLanguage, t } = useLanguage();
@@ -268,6 +271,12 @@ export default function Home() {
         />
       )}
 
+      {/* Login Required Modal */}
+      <LoginRequiredModal 
+        isOpen={isLoginModalOpen} 
+        onClose={() => setIsLoginModalOpen(false)} 
+      />
+
       {/* Navigation Buttons - Upper Right Area */}
       <nav className="absolute top-28 right-6 z-30 flex flex-col gap-4">
         {menuButtons.map((button, index) => {
@@ -277,6 +286,12 @@ export default function Home() {
               key={button.id}
               id={button.id}
               href={button.href}
+              onClick={(e) => {
+                if ((button.id === "diem-danh" || button.id === "thu-vien" || button.id === "lich-su-cam-xuc") && !isAuthenticated) {
+                    e.preventDefault();
+                    setIsLoginModalOpen(true);
+                }
+              }}
               className={`
                 group relative flex items-center gap-3 px-6 py-4 
                 bg-white/90 backdrop-blur-xl rounded-full

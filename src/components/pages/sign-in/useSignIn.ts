@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useLanguage } from "@/components/providers/language-provider";
 import { signInApi } from "./signInService";
+import { ApiError } from "@/components/http_request";
 
 export interface UseSignInReturn {
   // Form state
@@ -28,7 +29,7 @@ export interface UseSignInReturn {
 
 export function useSignIn(): UseSignInReturn {
   const router = useRouter();
-  const { setUser } = useAuth();
+  const { refreshUser } = useAuth();
   const { t } = useLanguage();
   
   // Form state
@@ -55,19 +56,47 @@ export function useSignIn(): UseSignInReturn {
     setIsLoading(true);
     
     try {
-      const response = await signInApi({ email, password });
+      // The API response type is technically void currently in our service, change if needed.
+      // But assuming request.post returns whatever the body is.
+      await signInApi({ email, password });
       
-      // Update auth context with user data
-      setUser(response.user);
+      // Update the user context after successful login
+      await refreshUser();
+      
+      // If the API returns user data, we should use it. 
+      // For now, we assume cookie is set. 
+      // We might need to fetch user profile separately if login doesn't return it.
+      // Or we can manually set user email context if needed.
       
       // Navigate to home
       router.push("/");
     } catch (err) {
-      setError(t.signIn.errorFailed);
+      if (err instanceof ApiError) {
+        if (err.status === 400) {
+          const detail = err.data?.detail;
+          if (detail === "Incorrect email or password") {
+            setError(t.signIn.errorFailed); // Or specific message
+          } else if (detail === "User is not verified") {
+            // Redirect to verify-otp
+            router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
+            return;
+          } else if (detail === "Inactive user") {
+             setError("Your account is inactive. Please contact support.");
+          } else if (detail) {
+             setError(detail);
+          } else {
+             setError(t.signIn.errorFailed);
+          }
+        } else {
+           setError(t.signIn.errorFailed);
+        }
+      } else {
+        setError(t.signIn.errorFailed);
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, setUser, router, t.signIn.errorRequired, t.signIn.errorFailed]);
+  }, [email, password, router, t.signIn]);
 
   return {
     email,

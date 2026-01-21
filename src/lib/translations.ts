@@ -8,6 +8,8 @@ export interface Translations {
     backToHome: string;
     or: string;
     loading: string;
+    loginRequired: string;
+    cancel: string;
   };
   
   // Navigation
@@ -74,7 +76,24 @@ export interface Translations {
     errorMinLength: string;
     errorFailed: string;
   };
-  
+
+  // Verify OTP Page
+  verifyOtp: {
+    title: string;
+    subtitle: string;
+    emailSentTo: string;
+    code: string;
+    codePlaceholder: string;
+    submit: string;
+    resend: string;
+    resendIn: string;
+    resendReady: string;
+    errorRequired: string;
+    errorFailed: string;
+    resendSuccess: string;
+    resendFailed: string;
+  };
+
   // Attendance Page
   attendance: {
     title: string;
@@ -109,6 +128,8 @@ export const translations: Record<Language, Translations> = {
       backToHome: "← Quay về trang chủ",
       or: "hoặc",
       loading: "Đang tải...",
+      loginRequired: "Vui lòng đăng nhập để tiếp tục",
+      cancel: "Hủy",
     },
     nav: {
       signIn: "Đăng nhập",
@@ -165,6 +186,21 @@ export const translations: Record<Language, Translations> = {
       errorMinLength: "Mật khẩu phải có ít nhất 8 ký tự",
       errorFailed: "Đăng ký thất bại. Vui lòng thử lại.",
     },
+    verifyOtp: {
+      title: "Xác thực tài khoản",
+      subtitle: "Nhập mã OTP đã được gửi đến email của bạn",
+      emailSentTo: "Mã đã được gửi đến",
+      code: "Mã xác thực",
+      codePlaceholder: "Nhập mã 6 số",
+      submit: "Xác thực",
+      resend: "Gửi lại mã",
+      resendIn: "Gửi lại sau",
+      resendReady: "Bạn có thể gửi lại mã ngay",
+      errorRequired: "Vui lòng nhập mã OTP",
+      errorFailed: "Xác thực thất bại. Mã có thể không đúng hoặc đã hết hạn.",
+      resendSuccess: "Đã gửi lại mã OTP mới!",
+      resendFailed: "Gửi lại mã thất bại. Vui lòng thử lại sau.",
+    },
     attendance: {
       title: "Điểm Danh",
       subtitle: "Vẽ bất cứ điều gì bạn muốn!",
@@ -196,6 +232,8 @@ export const translations: Record<Language, Translations> = {
       backToHome: "← Back to home",
       or: "or",
       loading: "Loading...",
+      loginRequired: "Please sign in to continue",
+      cancel: "Cancel",
     },
     nav: {
       signIn: "Sign In",
@@ -251,6 +289,21 @@ export const translations: Record<Language, Translations> = {
       errorPasswordMismatch: "Passwords do not match",
       errorMinLength: "Password must be at least 8 characters",
       errorFailed: "Sign up failed. Please try again.",
+    },
+    verifyOtp: {
+      title: "Verify Account",
+      subtitle: "Enter the OTP code sent to your email",
+      emailSentTo: "Code sent to",
+      code: "Verification Code",
+      codePlaceholder: "Enter 6-digit code",
+      submit: "Verify",
+      resend: "Resend Code",
+      resendIn: "Resend in",
+      resendReady: "You can resend code now",
+      errorRequired: "Please enter the OTP code",
+      errorFailed: "Verification failed. Code may be incorrect or expired.",
+      resendSuccess: "New OTP code sent!",
+      resendFailed: "Failed to resend code. Please try again later.",
     },
     attendance: {
       title: "Attendance",

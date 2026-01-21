@@ -2,14 +2,12 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/components/providers/auth-provider";
 import { useLanguage } from "@/components/providers/language-provider";
 import { signUpApi } from "./signUpService";
+import { ApiError } from "@/components/http_request";
 
 export interface UseSignUpReturn {
   // Form state
-  username: string;
-  setUsername: (username: string) => void;
   email: string;
   setEmail: (email: string) => void;
   password: string;
@@ -41,11 +39,9 @@ export interface UseSignUpReturn {
 
 export function useSignUp(): UseSignUpReturn {
   const router = useRouter();
-  const { setUser } = useAuth();
   const { t } = useLanguage();
   
   // Form state
-  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -75,7 +71,7 @@ export function useSignUp(): UseSignUpReturn {
     setError("");
 
     // Validation
-    if (!username || !email || !password || !confirmPassword) {
+    if (!email || !password || !confirmPassword) {
       setError(t.signUp.errorRequired);
       return;
     }
@@ -93,23 +89,28 @@ export function useSignUp(): UseSignUpReturn {
     setIsLoading(true);
     
     try {
-      const response = await signUpApi({ username, email, password });
+      await signUpApi({ email, password });
       
-      // Update auth context with user data
-      setUser(response.user);
-      
-      // Navigate to home
-      router.push("/");
+      // Navigate to verify otp page with email param
+      router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
     } catch (err) {
-      setError(t.signUp.errorFailed);
+      if (err instanceof ApiError) {
+        if (err.status === 400 && err.data?.detail === "The user with this email already exists in the system.") {
+          setError("This email is already registered. Please sign in instead.");
+        } else if (err.data?.detail) {
+           setError(err.data.detail);
+        } else {
+           setError(t.signUp.errorFailed);
+        }
+      } else {
+        setError(t.signUp.errorFailed);
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [username, email, password, confirmPassword, passwordValidation.hasMinLength, setUser, router, t.signUp]);
+  }, [email, password, confirmPassword, passwordValidation.hasMinLength, router, t.signUp]);
 
   return {
-    username,
-    setUsername,
     email,
     setEmail,
     password,
