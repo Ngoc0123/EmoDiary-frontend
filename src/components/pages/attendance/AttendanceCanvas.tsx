@@ -1,45 +1,56 @@
 "use client";
 
+import "./attendance.css";
 import Link from "next/link";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
-import { 
-  Paintbrush, 
-  Eraser, 
+import {
+  Pencil,
+  PenTool,
   Pipette,
-  Layers,
-  ChevronUp,
-  ChevronDown,
+  Eraser,
+  PaintBucket,
   Share2,
   Download,
   Home,
   Check,
   Undo2,
   Redo2,
-  Sparkles,
-  Droplets,
-  PaintBucket,
-  ZoomIn
+  Plus,
+  Eye,
+  EyeOff,
+  Settings,
+  Trash2,
+  User,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useAttendanceCanvas, COLORS } from "./useAttendanceCanvas";
 
 const KonvaCanvas = dynamic(
   () => import("./KonvaCanvas").then((mod) => mod.KonvaCanvas),
-  { 
+  {
     ssr: false,
     loading: () => (
       <div className="w-full h-full flex items-center justify-center bg-white">
         <div className="text-slate-400">Loading canvas...</div>
       </div>
-    )
+    ),
   }
 );
+
+// Default palette colors matching design
+const PALETTE_COLORS = [
+  "#F97316", // Orange
+  "#EF4444", // Red
+  "#3B82F6", // Blue
+  "#22C55E", // Green
+  "#EAB308", // Yellow
+];
 
 export function AttendanceCanvas() {
   const {
     stageRef,
-    lines,
+    layers,
+    activeLayerId,
     brushColor,
     brushSize,
     tool,
@@ -55,6 +66,10 @@ export function AttendanceCanvas() {
     undo,
     redo,
     saveDrawing,
+    addLayer,
+    deleteLayer,
+    toggleLayerVisibility,
+    setActiveLayerId,
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,
@@ -63,34 +78,38 @@ export function AttendanceCanvas() {
     t,
   } = useAttendanceCanvas();
 
-  // A4 paper dimensions (approx 150 DPI for good quality) - Landscape
+  // A4 paper dimensions (landscape)
   const A4_WIDTH = 1754;
   const A4_HEIGHT = 1240;
 
   const containerRef = useRef<HTMLDivElement>(null);
-  // Remove dynamic stage size, use fixed A4
   const [baseScale, setBaseScale] = useState(1);
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const [showZoomControl, setShowZoomControl] = useState(false);
-  const [isBottomBarCollapsed, setIsBottomBarCollapsed] = useState(false);
-  const [isTopBarCollapsed, setIsTopBarCollapsed] = useState(false);
-  // Zoom level: 1 = Fits screen, >1 = Zoom in
   const [canvasZoom, setCanvasZoom] = useState(100);
+  const [activeToolId, setActiveToolId] = useState("brush");
+
+  // Sync activeToolId when hook auto-switches tool (e.g. picker → brush)
+  useEffect(() => {
+    if (tool === 'brush' && activeToolId === 'picker') {
+      setActiveToolId('brush');
+    }
+  }, [tool, activeToolId]);
+
+  // Whether the current brush color is a non-default (custom) color
+  const isCustomColor = !PALETTE_COLORS.includes(brushColor);
 
   // Calculate base scale to fit A4 into container
   useEffect(() => {
     const updateScale = () => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
-        // Add some padding (e.g. 40px total)
-        const padding = 40;
+        const padding = 60;
         const availableWidth = rect.width - padding;
         const availableHeight = rect.height - padding;
-        
+
         const scaleX = availableWidth / A4_WIDTH;
         const scaleY = availableHeight / A4_HEIGHT;
-        
-        // Fit entirely visible
+
         setBaseScale(Math.min(scaleX, scaleY));
       }
     };
@@ -98,20 +117,21 @@ export function AttendanceCanvas() {
     updateScale();
     window.addEventListener("resize", updateScale);
     return () => window.removeEventListener("resize", updateScale);
-  }, [isTopBarCollapsed, isBottomBarCollapsed]);
+  }, []);
 
   const currentScale = baseScale * (canvasZoom / 100);
 
-  const handleToolChange = (newTool: 'brush' | 'eraser' | 'fill') => {
+  const handleToolChange = (toolId: string, newTool: "brush" | "eraser" | "fill" | "picker") => {
+    setActiveToolId(toolId);
     setTool(newTool);
   };
-  
+
   const handleDownload = () => {
     const stage = stageRef.current;
     if (!stage) return;
-    
+
     const dataUrl = stage.toDataURL({ pixelRatio: 2 });
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.download = `drawing-${Date.now()}.png`;
     link.href = dataUrl;
     link.click();
@@ -120,169 +140,205 @@ export function AttendanceCanvas() {
   const handleShare = async () => {
     const stage = stageRef.current;
     if (!stage) return;
-    
+
     try {
       const dataUrl = stage.toDataURL({ pixelRatio: 2 });
       const response = await fetch(dataUrl);
       const blob = await response.blob();
-      
+
       if (navigator.share) {
         await navigator.share({
-          title: 'My Drawing',
-          text: 'Check out my drawing!',
-          files: [new File([blob], 'drawing.png', { type: 'image/png' })],
+          title: "My Drawing",
+          text: "Check out my drawing!",
+          files: [new File([blob], "drawing.png", { type: "image/png" })],
         });
       } else {
         await navigator.clipboard.write([
-          new ClipboardItem({ 'image/png': blob })
+          new ClipboardItem({ "image/png": blob }),
         ]);
-        alert('Image copied to clipboard!');
+        alert("Image copied to clipboard!");
       }
     } catch (error) {
-      console.error('Share failed:', error);
+      console.error("Share failed:", error);
     }
   };
 
-  const tools = [
-    { id: 'brush', icon: Paintbrush, label: t.brush },
-    { id: 'fill', icon: PaintBucket, label: t.fill },
-    { id: 'eraser', icon: Eraser, label: t.eraser },
-    { id: 'picker', icon: Pipette, label: t.picker },
+
+  // Estimate file size
+  const estimateFileSize = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage) return "0 KB";
+    try {
+      const dataUrl = stage.toDataURL({ pixelRatio: 1 });
+      const sizeBytes = Math.round((dataUrl.length * 3) / 4);
+      if (sizeBytes > 1024 * 1024) {
+        return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+      }
+      return `${Math.round(sizeBytes / 1024)} KB`;
+    } catch {
+      return "-- KB";
+    }
+  }, [stageRef]);
+
+  // Custom cursor generation — circle matching brush size
+  const canvasCursor = useMemo(() => {
+    if (typeof window === 'undefined') return 'crosshair';
+    if (tool === 'picker') return 'crosshair';
+    if (tool === 'fill') return 'crosshair';
+
+    const visualSize = Math.max(4, Math.min(brushSize * currentScale, 120));
+    const canvasEl = document.createElement('canvas');
+    const size = Math.ceil(visualSize) + 4;
+    canvasEl.width = size;
+    canvasEl.height = size;
+    const ctx = canvasEl.getContext('2d');
+    if (!ctx) return 'crosshair';
+
+    const center = size / 2;
+    const radius = visualSize / 2;
+
+    // Outer circle
+    ctx.beginPath();
+    ctx.arc(center, center, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = tool === 'eraser' ? '#888' : brushColor;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Center dot
+    ctx.beginPath();
+    ctx.arc(center, center, 1.2, 0, Math.PI * 2);
+    ctx.fillStyle = '#333';
+    ctx.fill();
+
+    const hotspot = Math.floor(center);
+    return `url(${canvasEl.toDataURL()}) ${hotspot} ${hotspot}, crosshair`;
+  }, [tool, brushSize, currentScale, brushColor]);
+
+  // Left sidebar tools
+  const sidebarTools = [
+    { id: "brush", icon: Pencil, label: t.brush, toolType: "brush" as const },
+    { id: "pen", icon: PenTool, label: "Pen", toolType: "brush" as const },
+    { id: "fill", icon: PaintBucket, label: t.fill, toolType: "fill" as const },
+    { id: "picker", icon: Pipette, label: t.picker, toolType: "picker" as const },
+    { id: "eraser", icon: Eraser, label: t.eraser, toolType: "eraser" as const },
   ];
 
   return (
-    <div className="relative h-screen w-full bg-slate-50 overflow-hidden">
-      
-      {/* Sidebar and Header unchanged... */}
-      {/* ... */}
-      <aside className="fixed left-0 top-0 bottom-0 z-50 w-16 bg-white/80 backdrop-blur-xl border-r border-slate-200 flex flex-col h-full shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
-        {/* Logo Area */}
-        <div className="h-16 flex items-center justify-center border-b border-slate-100 mb-2">
-          <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
-            <Sparkles className="w-6 h-6 text-white" />
+    <div className="attendance-page">
+      {/* ===== TOP BAR ===== */}
+      <header className="attendance-topbar">
+        <div className="attendance-topbar__left">
+          <div className="attendance-topbar__logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="#F97316"/>
+              <line x1="4" y1="20" x2="10" y2="14" stroke="#F97316" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </div>
+          <h1 className="attendance-topbar__title">{t.drawYourFeeling}</h1>
+          <button
+            className="attendance-topbar__btn attendance-topbar__btn--outline"
+            onClick={clearCanvas}
+          >
+            {t.stop}
+          </button>
+          <button
+            className="attendance-topbar__btn attendance-topbar__btn--primary"
+            onClick={saveDrawing}
+            disabled={isSaving}
+          >
+            {isSaving ? t.saving : "Done"}
+          </button>
+          {saveMessage && (
+            <span className={`attendance-topbar__message ${isError ? "attendance-topbar__message--error" : ""}`}>
+              {isError ? "✕ " : "✓ "} {saveMessage}
+            </span>
+          )}
+        </div>
+        <div className="attendance-topbar__right">
+          <button
+            className="attendance-topbar__icon-btn"
+            onClick={handleShare}
+            title={t.share}
+          >
+            <Share2 className="w-5 h-5" />
+          </button>
+          <button
+            className="attendance-topbar__icon-btn"
+            onClick={handleDownload}
+            title={t.download}
+          >
+            <Download className="w-5 h-5" />
+          </button>
+          <Link href="/" className="attendance-topbar__icon-btn" title={t.backToHome}>
+            <Home className="w-5 h-5" />
+          </Link>
+          <div className="attendance-topbar__avatar">
+            <User className="w-5 h-5" />
           </div>
         </div>
+      </header>
 
-        <div className="flex flex-col items-center gap-2 px-2">
-          {tools.map((toolItem) => {
-            const IconComponent = toolItem.icon;
-            const isActive = toolItem.id === tool || 
-              (toolItem.id === 'picker' && showColorPicker);
-            
-            return (
-              <button
-                key={toolItem.id}
-                onClick={() => {
-                  if (toolItem.id === 'brush' || toolItem.id === 'eraser' || toolItem.id === 'fill') {
-                    handleToolChange(toolItem.id as 'brush' | 'eraser' | 'fill');
-                  } else if (toolItem.id === 'picker') {
-                    setShowColorPicker(!showColorPicker);
-                  }
-                }}
-                className={`
-                  w-11 h-11 flex items-center justify-center rounded-xl
-                  transition-all duration-200
-                  ${isActive 
-                    ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-orange-300/50' 
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }
-                `}
-                title={toolItem.label}
-              >
-                <IconComponent className="h-5 w-5" />
-              </button>
-            );
-          })}
-          
-          {/* Zoom Control Button */}
-          <button
-            onClick={() => setShowZoomControl(!showZoomControl)}
-            className={`
-              w-11 h-11 flex items-center justify-center rounded-xl
-              transition-all duration-200
-              ${showZoomControl 
-                ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-orange-300/50' 
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }
-            `}
-            title={t.zoom}
-          >
-            <ZoomIn className="h-5 w-5" />
-          </button>
-        </div>
-      </aside>
+      {/* ===== MAIN LAYOUT ===== */}
+      <div className="attendance-main">
+        {/* ===== LEFT SIDEBAR ===== */}
+        <aside className="attendance-sidebar">
+          <div className="attendance-sidebar__tools">
+          {sidebarTools.map((toolItem) => {
+              const IconComponent = toolItem.icon;
+              const isActive = activeToolId === toolItem.id;
 
-      {/* Main Content Area */}
-      <div className="ml-16 flex flex-col relative h-full">
-        
-        {/* Top Header Bar */}
-        <div className="relative z-20 w-full">
-          <header 
-            className={`
-              relative w-full bg-white/90 backdrop-blur-xl border-b border-slate-200 shadow-sm
-              transition-all duration-300 ease-in-out
-              ${isTopBarCollapsed ? 'h-0 opacity-0 overflow-hidden border-none' : 'h-16 opacity-100'}
-            `}
-          >
-             {/* Header Content... Keep existing... */}
-            <div className={`h-full px-6 pr-8 flex items-center justify-between relative ${isTopBarCollapsed ? 'hidden' : ''}`}>
-              
-              {/* Left Side Buttons */}
-              <div className="flex items-center gap-3">
-                <Button onClick={saveDrawing} disabled={isSaving} className="h-9 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold rounded-lg shadow-md">
-                  {isSaving ? t.saving : t.save}
-                </Button>
-                <Button variant="outline" onClick={clearCanvas} className="h-9 px-4 text-red-600 border-red-200 font-semibold rounded-lg">
-                  {t.clear}
-                </Button>
-                <div className="flex items-center gap-1 ml-2">
-                  <button onClick={undo} disabled={!canUndo} className={`p-2 rounded-lg ${canUndo ? 'hover:bg-slate-100 text-slate-600' : 'text-slate-300'}`} title={t.undo}> <Undo2 className="h-4 w-4" /> </button>
-                  <button onClick={redo} disabled={!canRedo} className={`p-2 rounded-lg ${canRedo ? 'hover:bg-slate-100 text-slate-600' : 'text-slate-300'}`} title={t.redo}> <Redo2 className="h-4 w-4" /> </button>
-                </div>
-                {saveMessage && (
-                  <span className={`text-sm font-medium animate-fade-in ml-2 ${isError ? 'text-red-500' : 'text-emerald-600'}`}>
-                    {isError ? '✕ ' : '✓ '} {saveMessage}
-                  </span>
-                )}
-              </div>
+              return (
+                <button
+                  key={toolItem.id}
+                  onClick={() => handleToolChange(toolItem.id, toolItem.toolType)}
+                  className={`attendance-sidebar__tool ${
+                    isActive ? "attendance-sidebar__tool--active" : ""
+                  }`}
+                  title={toolItem.label}
+                >
+                  <IconComponent className="w-5 h-5" />
+                </button>
+              );
+            })}
+          </div>
 
-              <div className="absolute inset-x-0 flex items-center justify-center pointer-events-none">
-                <span className="text-sm font-semibold text-slate-700 pointer-events-auto select-none">{t.drawYourFeeling}</span>
-              </div>
+          {/* Undo/Redo at bottom */}
+          <div className="attendance-sidebar__bottom">
+            <button
+              onClick={undo}
+              disabled={!canUndo}
+              className={`attendance-sidebar__action ${!canUndo ? "attendance-sidebar__action--disabled" : ""}`}
+              title={t.undo}
+            >
+              <Undo2 className="w-5 h-5" />
+            </button>
+            <button
+              onClick={redo}
+              disabled={!canRedo}
+              className={`attendance-sidebar__action ${!canRedo ? "attendance-sidebar__action--disabled" : ""}`}
+              title={t.redo}
+            >
+              <Redo2 className="w-5 h-5" />
+            </button>
+          </div>
+        </aside>
 
-              {/* Right Side Buttons */}
-              <div className="flex items-center gap-2 z-10 w-[140px] justify-end">
-                <button onClick={handleShare} className="p-2.5 hover:bg-slate-100 rounded-lg border border-slate-200" title={t.share}> <Share2 className="h-5 w-5 text-slate-600" /> </button>
-                <button onClick={handleDownload} className="p-2.5 hover:bg-slate-100 rounded-lg border border-slate-200" title={t.download}> <Download className="h-5 w-5 text-slate-600" /> </button>
-                <Link href="/" className="p-2.5 hover:bg-slate-100 rounded-lg border border-slate-200" title={t.backToHome}> <Home className="h-5 w-5 text-slate-600" /> </Link>
-              </div>
-            </div>
-          </header>
-        </div>
-
-        {/* Canvas Container - Allow scroll if zoomed */}
-        <div 
-          ref={containerRef}
-          className="flex-1 relative overflow-auto bg-slate-100 flex items-center justify-center p-8"
-        >
-          <div 
-            className="flex-shrink-0 bg-white shadow-xl shadow-slate-300/50 transition-transform duration-200 ease-out origin-center border border-slate-200"
-            style={{ 
+        {/* ===== CANVAS AREA ===== */}
+        <div className="attendance-canvas-area" ref={containerRef}>
+          <div
+            className="attendance-canvas-wrapper"
+            style={{
               width: A4_WIDTH,
               height: A4_HEIGHT,
               transform: `scale(${currentScale})`,
-              // When scaled down, we want it to take less layout space? 
-              // Usually transform scale doesn't affect layout flow unless we use 'zoom' (non-standard) or negative margins.
-              // But 'origin-center' + flex centering works well if we don't care about extra margins.
-              // To avoid scrollbars when zoomed OUT (fitted), we need to ensure the wrapper fits.
-              // But overflow-auto on strict fit is fine.
+              cursor: canvasCursor,
             }}
           >
             <KonvaCanvas
               ref={stageRef}
               width={A4_WIDTH}
               height={A4_HEIGHT}
-              lines={lines}
+              layers={layers}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
@@ -290,144 +346,231 @@ export function AttendanceCanvas() {
           </div>
         </div>
 
-        {/* Bottom Section */}
-        <div className="relative z-30">
-          
-          {/* Bottom Collapse Trigger */}
-          {!isBottomBarCollapsed && (
-            <div className="absolute bottom-full left-0 right-0 flex justify-end pr-6 pointer-events-none z-10">
-               <div 
-                 className="pointer-events-auto flex items-start justify-center pt-1 w-24 h-5 bg-white hover:bg-slate-50 border border-slate-200 border-b-0 rounded-t-xl shadow-sm transition-colors group cursor-pointer" 
-                 onClick={() => setIsBottomBarCollapsed(true)}
-                 title="Collapse toolbar"
-               >
-                <ChevronDown className="h-3 w-3 text-slate-500 group-hover:translate-y-0.5 transition-transform" />
-              </div>
-            </div>
-          )}
-
-          {/* Bottom Expand Trigger */}
-          {isBottomBarCollapsed && (
-            <div className="absolute bottom-0 left-0 right-0 flex justify-end pr-6 pointer-events-none z-10">
-               <div 
-                 className="pointer-events-auto flex items-end justify-center pb-1 w-24 h-5 bg-white hover:bg-slate-50 border border-slate-200 border-b-0 rounded-t-xl shadow-sm transition-colors group cursor-pointer" 
-                 onClick={() => setIsBottomBarCollapsed(false)}
-                 title="Show toolbar"
-               >
-                <ChevronUp className="h-3 w-3 text-slate-500 group-hover:-translate-y-0.5 transition-transform" />
-              </div>
-            </div>
-          )}
-
-          {/* Bottom Toolbar */}
-          <footer 
-            className={`
-              relative z-20 bg-white/90 backdrop-blur-xl border-t border-slate-200 shadow-sm
-              transition-all duration-300 ease-in-out origin-bottom
-              ${isBottomBarCollapsed ? 'h-0 py-0 px-0 opacity-0 overflow-hidden border-none' : 'py-3 px-6 h-auto opacity-100'}
-            `}
-          >
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2 shrink-0">
-                <button onClick={() => setShowColorPicker(!showColorPicker)} className="relative h-8 w-8 rounded-full border-2 border-white shadow-lg ring-2 ring-slate-200" style={{ backgroundColor: brushColor }} />
-                <div className="h-6 w-6 rounded-full border-2 border-white shadow-md flex items-center justify-center bg-slate-100"> <div className="rounded-full" style={{ width: Math.min(brushSize / 3, 12), height: Math.min(brushSize / 3, 12), backgroundColor: brushColor, opacity: brushOpacity }} /> </div>
-              </div>
-              
-              {/* Brush Size Slider */}
-              <div className="flex-[3] flex items-center gap-2">
-                <div className="flex-1 relative">
-                  <input type="range" min="1" max="50" value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value))} className="w-full h-2 bg-slate-200 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-gradient-to-br [&::-webkit-slider-thumb]:from-amber-400 [&::-webkit-slider-thumb]:to-orange-500 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white" />
+        {/* ===== RIGHT PANEL (Layers) ===== */}
+        <aside className="attendance-layers">
+          <div className="attendance-layers__header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2" />
+              <polyline points="2 17 12 22 22 17" />
+              <polyline points="2 12 12 17 22 12" />
+            </svg>
+            <span>{t.layers}</span>
+            <button
+              className="attendance-layers__add"
+              onClick={addLayer}
+              title="Add Layer"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="attendance-layers__list">
+            {/* Render layers in reverse order (topmost first) */}
+            {[...layers].reverse().map((layer) => {
+              const isActive = layer.id === activeLayerId;
+              return (
+                <div
+                  key={layer.id}
+                  className={`attendance-layers__item ${
+                    isActive ? "attendance-layers__item--active" : ""
+                  }`}
+                  onClick={() => setActiveLayerId(layer.id)}
+                >
+                  <div className="attendance-layers__thumbnail">
+                    <div className={layer.items.length > 0 ? "attendance-layers__thumb-content" : "attendance-layers__thumb-bg"} />
+                  </div>
+                  <div className="attendance-layers__info">
+                    <span className="attendance-layers__name">{layer.name}</span>
+                    <span className="attendance-layers__subtitle">
+                      {isActive ? "Active" : !layer.visible ? "Hidden" : `${layer.items.length} items`}
+                    </span>
+                  </div>
+                  {layers.length > 1 && (
+                    <button
+                      className="attendance-layers__delete"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteLayer(layer.id);
+                      }}
+                      title="Delete Layer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    className="attendance-layers__visibility"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleLayerVisibility(layer.id);
+                    }}
+                  >
+                    {layer.visible ? (
+                      <Eye className="w-4 h-4" />
+                    ) : (
+                      <EyeOff className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
-              </div>
-              
-              <div className="w-px h-6 bg-slate-200 shrink-0" />
-              
-              {/* Opacity Slider */}
-              <div className="flex-[2] flex items-center gap-2">
-                <Droplets className="h-4 w-4 text-slate-400 shrink-0" />
-                <div className="flex-1 relative">
-                  <input type="range" min="1" max="100" value={brushOpacity * 100} onChange={(e) => setBrushOpacity(parseInt(e.target.value) / 100)} title={t.opacity} className="w-full h-2 bg-slate-200 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-slate-600 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white" />
-                </div>
-                <span className="text-xs font-medium text-slate-500 w-10 text-right shrink-0">{Math.round(brushOpacity * 100)}%</span>
-              </div>
-              
-              <div className="flex-1" />
+              );
+            })}
+          </div>
+
+          {/* Canvas Info */}
+          <div className="attendance-canvas-info">
+            <h4 className="attendance-canvas-info__title">CANVAS INFO</h4>
+            <div className="attendance-canvas-info__row">
+              <span>Dimensions</span>
+              <span>{A4_WIDTH} × {A4_HEIGHT}</span>
             </div>
-          </footer>
-        </div>
+            <div className="attendance-canvas-info__row">
+              <span>File Size</span>
+              <span>{estimateFileSize()}</span>
+            </div>
+          </div>
+        </aside>
       </div>
 
-      {/* FIXED Top Bar Toggles */}
-      {!isTopBarCollapsed && (
-        <div className="fixed top-16 left-16 right-0 flex justify-end pr-6 pointer-events-none z-30 transition-all duration-300">
-          <div 
-            onClick={() => setIsTopBarCollapsed(true)}
-            className="pointer-events-auto flex items-start justify-center pt-1
-              w-24 h-5
-              bg-white/90 backdrop-blur border border-t-0 border-slate-200
-              rounded-b-xl shadow-sm
-              hover:bg-slate-50 transition-colors
-              cursor-pointer
-              group"
-            title="Collapse toolbar"
+      {/* ===== BOTTOM TOOLBAR ===== */}
+      <footer className="attendance-bottombar">
+        {/* Color Palette */}
+        <div className="attendance-bottombar__colors">
+          {PALETTE_COLORS.map((color) => {
+            const isActive = brushColor === color;
+            return (
+              <button
+                key={color}
+                className={`attendance-bottombar__color-dot ${
+                  isActive ? "attendance-bottombar__color-dot--active" : ""
+                }`}
+                style={{ backgroundColor: color }}
+                onClick={() => {
+                  setBrushColor(color);
+                  setTool("brush");
+                  setActiveToolId("brush");
+                }}
+              >
+                {isActive && (
+                  <Check
+                    className="w-3 h-3"
+                    style={{
+                      color:
+                        color === "#EAB308" || color === "#22C55E"
+                          ? "#1a1a1a"
+                          : "#fff",
+                    }}
+                  />
+                )}
+              </button>
+            );
+          })}
+          <button
+            className={`attendance-bottombar__color-add ${
+              isCustomColor ? "attendance-bottombar__color-add--active" : ""
+            }`}
+            style={
+              isCustomColor
+                ? { backgroundColor: brushColor, borderStyle: "solid" }
+                : {}
+            }
+            onClick={() => setShowColorPicker(!showColorPicker)}
+            title="More colors"
           >
-            <ChevronUp className="h-3 w-3 text-slate-400 group-hover:text-slate-600 group-hover:-translate-y-0.5 transition-all" />
+            {isCustomColor ? (
+              <Check
+                className="w-3 h-3"
+                style={{
+                  color:
+                    brushColor === "#FFFFFF" || brushColor === "#FFEAA7"
+                      ? "#1a1a1a"
+                      : "#fff",
+                }}
+              />
+            ) : (
+              <Plus className="w-4 h-4" />
+            )}
+          </button>
+        </div>
+
+        <div className="attendance-bottombar__divider" />
+
+        {/* Brush Size */}
+        <div className="attendance-bottombar__control">
+          <span className="attendance-bottombar__label">BRUSH SIZE</span>
+          <div className="attendance-bottombar__slider-group">
+            <input
+              type="range"
+              min="1"
+              max="50"
+              value={brushSize}
+              onChange={(e) => setBrushSize(parseInt(e.target.value))}
+              className="attendance-bottombar__slider"
+            />
+            <span className="attendance-bottombar__value">{brushSize}px</span>
           </div>
         </div>
-      )}
 
-      {isTopBarCollapsed && (
-        <div className="fixed top-0 left-16 right-0 flex justify-end pr-6 pointer-events-none z-30 transition-all duration-300">
-          <div 
-            onClick={() => setIsTopBarCollapsed(false)}
-            className="pointer-events-auto flex items-end justify-center pb-1
-              w-24 h-5
-              bg-white/90 backdrop-blur border border-t-0 border-slate-200
-              rounded-b-xl shadow-sm
-              hover:bg-slate-50 transition-colors
-              cursor-pointer
-              group"
-            title="Show toolbar"
-          >
-            <ChevronDown className="h-3 w-3 text-slate-400 group-hover:text-slate-600 group-hover:translate-y-0.5 transition-all" />
+        <div className="attendance-bottombar__divider" />
+
+        {/* Opacity */}
+        <div className="attendance-bottombar__control">
+          <span className="attendance-bottombar__label">OPACITY</span>
+          <div className="attendance-bottombar__slider-group">
+            <input
+              type="range"
+              min="1"
+              max="100"
+              value={brushOpacity * 100}
+              onChange={(e) => setBrushOpacity(parseInt(e.target.value) / 100)}
+              className="attendance-bottombar__slider attendance-bottombar__slider--opacity"
+            />
+            <span className="attendance-bottombar__value">
+              {Math.round(brushOpacity * 100)}%
+            </span>
           </div>
         </div>
-      )}
 
-      {/* Color Picker Popup */}
+        <div className="attendance-bottombar__divider" />
+
+        {/* Settings */}
+        <button className="attendance-bottombar__settings" title="Settings">
+          <Settings className="w-5 h-5" />
+        </button>
+      </footer>
+
+      {/* ===== COLOR PICKER POPUP ===== */}
       {showColorPicker && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setShowColorPicker(false)} />
-          <div className="fixed left-20 bottom-24 z-50 p-3 bg-white rounded-2xl shadow-2xl border border-slate-200 animate-fade-in">
-            <div className="grid grid-cols-4 gap-2">
+          <div
+            className="attendance-overlay"
+            onClick={() => setShowColorPicker(false)}
+          />
+          <div className="attendance-colorpicker">
+            <div className="attendance-colorpicker__grid">
               {COLORS.map((color) => (
-                <button key={color} onClick={() => { setBrushColor(color); setTool('brush'); setShowColorPicker(false); }} className={`h-10 w-10 rounded-xl transition-all duration-200 hover:scale-110 ${brushColor === color ? 'ring-2 ring-offset-2 ring-amber-500 scale-110' : 'ring-1 ring-slate-200'}`} style={{ backgroundColor: color }}>
-                  {brushColor === color && <Check className={`m-auto h-4 w-4 ${color === '#FFFFFF' || color === '#FFEAA7' ? 'text-slate-600' : 'text-white'}`} />}
+                <button
+                  key={color}
+                  onClick={() => {
+                    setBrushColor(color);
+                    setShowColorPicker(false);
+                  }}
+                  className={`attendance-colorpicker__swatch ${
+                    brushColor === color ? "attendance-colorpicker__swatch--active" : ""
+                  }`}
+                  style={{ backgroundColor: color }}
+                >
+                  {brushColor === color && (
+                    <Check
+                      className="w-4 h-4"
+                      style={{
+                        color:
+                          color === "#FFFFFF" || color === "#FFEAA7"
+                            ? "#333"
+                            : "#fff",
+                      }}
+                    />
+                  )}
                 </button>
               ))}
             </div>
-          </div>
-        </>
-      )}
-
-      {/* Zoom Control Popup */}
-      {showZoomControl && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setShowZoomControl(false)} />
-          <div className="fixed left-20 top-1/2 -translate-y-1/2 z-50 p-4 bg-white rounded-2xl shadow-2xl border border-slate-200 animate-fade-in w-16 flex flex-col items-center h-64">
-             <div className="h-full relative w-full flex justify-center">
-                 {/* Vertical slider wrapper */}
-                <input 
-                  type="range" 
-                  min="50" 
-                  max="300" 
-                  value={canvasZoom} 
-                  onChange={(e) => setCanvasZoom(parseInt(e.target.value))} 
-                  title={t.zoom} 
-                  className="absolute -rotate-90 w-48 h-2 top-1/2 -translate-y-1/2 bg-slate-200 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-slate-600 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white" 
-                />
-             </div>
-             <div className="mt-4 text-xs font-medium text-slate-500 text-center">{canvasZoom}%</div>
           </div>
         </>
       )}

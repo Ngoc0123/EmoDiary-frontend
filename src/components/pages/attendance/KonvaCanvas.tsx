@@ -3,18 +3,18 @@
 import { Stage, Layer, Line, Rect, Image as KonvaImage } from "react-konva";
 import Konva from "konva";
 import { forwardRef, useEffect, useState } from "react";
-import type { LineData } from "./useAttendanceCanvas";
+import type { LayerData } from "./useAttendanceCanvas";
 
 interface KonvaCanvasProps {
   width: number;
   height: number;
-  lines: LineData[]; // LineData is now alias for CanvasItem
+  layers: LayerData[];
   onMouseDown: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onMouseMove: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onMouseUp: () => void;
 }
 
-// Helper hook to load image
+// Helper hook to load image from data URL
 const useImage = (url: string) => {
   const [image, setImage] = useState<HTMLImageElement | undefined>(undefined);
   useEffect(() => {
@@ -32,7 +32,7 @@ const URLImage = ({ src, x, y, opacity }: { src: string; x: number; y: number; o
 };
 
 export const KonvaCanvas = forwardRef<Konva.Stage, KonvaCanvasProps>(
-  function KonvaCanvas({ width, height, lines, onMouseDown, onMouseMove, onMouseUp }, ref) {
+  function KonvaCanvas({ width, height, layers, onMouseDown, onMouseMove, onMouseUp }, ref) {
     return (
       <Stage
         ref={ref}
@@ -45,55 +45,50 @@ export const KonvaCanvas = forwardRef<Konva.Stage, KonvaCanvasProps>(
         onTouchStart={onMouseDown}
         onTouchMove={onMouseMove}
         onTouchEnd={onMouseUp}
-        style={{ cursor: 'crosshair' }}
+        style={{ cursor: 'inherit' }}
       >
+        {/* Background layer — always visible white canvas */}
         <Layer>
-          {/* White background */}
-          <Rect
-            x={0}
-            y={0}
-            width={width}
-            height={height}
-            fill="#FFFFFF"
-          />
-          
-          {/* Draw all items */}
-          {lines.map((item, i) => {
-            if (item.type === 'fill') {
-              return (
-                <URLImage
-                  key={i}
-                  src={item.image}
-                  x={item.x}
-                  y={item.y}
-                  opacity={item.opacity}
-                />
-              );
-            }
-
-            // Default to line if type missing (legacy) or explicitly 'line'
-            // But our union forces type check if we are strict. 
-            // We'll treat it as line if not fill.
-            if (item.type === 'line') {
-              return (
-                <Line
-                  key={i}
-                  points={item.points}
-                  stroke={item.strokeColor}
-                  strokeWidth={item.strokeWidth}
-                  opacity={item.opacity ?? 1}
-                  tension={0.5}
-                  lineCap="round"
-                  lineJoin="round"
-                  globalCompositeOperation={
-                    item.tool === 'eraser' ? 'destination-out' : 'source-over'
-                  }
-                />
-              );
-            }
-            return null;
-          })}
+          <Rect x={0} y={0} width={width} height={height} fill="#FFFFFF" />
         </Layer>
+        
+        {/* User layers — rendered in order, Konva handles visibility */}
+        {layers.map((layer) => (
+          <Layer key={layer.id} visible={layer.visible}>
+            {layer.items.map((item, i) => {
+              if (item.type === 'fill') {
+                return (
+                  <URLImage
+                    key={`${layer.id}-fill-${i}`}
+                    src={item.image}
+                    x={item.x}
+                    y={item.y}
+                    opacity={item.opacity}
+                  />
+                );
+              }
+
+              if (item.type === 'line') {
+                return (
+                  <Line
+                    key={`${layer.id}-line-${i}`}
+                    points={item.points}
+                    stroke={item.strokeColor}
+                    strokeWidth={item.strokeWidth}
+                    opacity={item.opacity ?? 1}
+                    tension={0.5}
+                    lineCap="round"
+                    lineJoin="round"
+                    globalCompositeOperation={
+                      item.tool === 'eraser' ? 'destination-out' : 'source-over'
+                    }
+                  />
+                );
+              }
+              return null;
+            })}
+          </Layer>
+        ))}
       </Stage>
     );
   }
