@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from "react";
 import { fetchMeApi, logoutApi, User } from "@/components/providers/userService";
+import { toast } from "sonner";
 
 // Auth context state type
 interface AuthContextType {
@@ -80,8 +81,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const handleUnauthorized = () => {
         setUser(null);
-        // Explicitly redirect to login
-        window.location.href = '/sign-in';
+        toast.error("Session expired. Please sign in again.", {
+          duration: 3000,
+          onAutoClose: () => {
+            window.location.href = '/sign-in';
+          },
+          onDismiss: () => {
+            window.location.href = '/sign-in';
+          },
+        });
     };
 
     window.addEventListener('auth:unauthorized', handleUnauthorized);

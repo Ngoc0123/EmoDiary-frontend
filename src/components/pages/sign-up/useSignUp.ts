@@ -10,6 +10,8 @@ export interface UseSignUpReturn {
   // Form state
   email: string;
   setEmail: (email: string) => void;
+  username: string;
+  setUsername: (username: string) => void;
   password: string;
   setPassword: (password: string) => void;
   confirmPassword: string;
@@ -40,9 +42,10 @@ export interface UseSignUpReturn {
 export function useSignUp(): UseSignUpReturn {
   const router = useRouter();
   const { t } = useLanguage();
-  
+
   // Form state
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -71,7 +74,7 @@ export function useSignUp(): UseSignUpReturn {
     setError("");
 
     // Validation
-    if (!email || !password || !confirmPassword) {
+    if (!email || !username || !password || !confirmPassword) {
       setError(t.signUp.errorRequired);
       return;
     }
@@ -87,20 +90,18 @@ export function useSignUp(): UseSignUpReturn {
     }
 
     setIsLoading(true);
-    
+
     try {
-      await signUpApi({ email, password });
-      
-      // Navigate to verify otp page with email param
-      router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
+      await signUpApi({ email, username, password });
+
+      // Registration successful — redirect to sign-in
+      router.push("/sign-in");
     } catch (err) {
       if (err instanceof ApiError) {
-        if (err.status === 400 && err.data?.detail === "The user with this email already exists in the system.") {
-          setError("This email is already registered. Please sign in instead.");
-        } else if (err.data?.detail) {
-           setError(err.data.detail);
+        if (err.data?.detail) {
+          setError(err.data.detail);
         } else {
-           setError(t.signUp.errorFailed);
+          setError(t.signUp.errorFailed);
         }
       } else {
         setError(t.signUp.errorFailed);
@@ -108,11 +109,13 @@ export function useSignUp(): UseSignUpReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, confirmPassword, passwordValidation.hasMinLength, router, t.signUp]);
+  }, [email, username, password, confirmPassword, passwordValidation.hasMinLength, router, t.signUp]);
 
   return {
     email,
     setEmail,
+    username,
+    setUsername,
     password,
     setPassword,
     confirmPassword,

@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import { AttendanceCanvas } from "@/components/pages/attendance";
 
 export default function AttendancePage() {
-  return <AttendanceCanvas />;
+  return (
+    <Suspense>
+      <AttendanceCanvas />
+    </Suspense>
+  );
 }

@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { 
-  Volume2, 
-  VolumeX, 
-  User, 
-  LogOut, 
-  Calendar, 
-  BookOpen, 
+import { useRouter } from "next/navigation";
+import {
+  Volume2,
+  VolumeX,
+  User,
+  LogOut,
+  Calendar,
+  BookOpen,
   Clock,
   ChevronDown,
   LogIn,
@@ -18,6 +19,11 @@ import {
 import { useAuth } from "@/components/providers/auth-provider";
 import { useLanguage } from "@/components/providers/language-provider";
 import { LoginRequiredModal } from "@/components/ui/LoginRequiredModal";
+import { MoodSelectModal, type MoodKey } from "@/components/ui/MoodSelectModal";
+import { request } from "@/components/http_request";
+import { ENDPOINT } from "@/components/endpoint_config/endpoint_config";
+import { ApiError } from "@/components/http_request";
+import { toast } from "sonner";
 
 // Flag component for Vietnam
 const VietnamFlag = ({ className }: { className?: string }) => (
@@ -50,9 +56,12 @@ export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLanguageOpen, setIsLanguageOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isMoodModalOpen, setIsMoodModalOpen] = useState(false);
   
   const { isAuthenticated, logout } = useAuth();
   const { language, setLanguage, t } = useLanguage();
+  const router = useRouter();
+  const [isCheckingAttendance, setIsCheckingAttendance] = useState(false);
 
   const languages = [
     { code: 'vi' as const, name: 'Tiếng Việt', Flag: VietnamFlag },
@@ -91,6 +100,31 @@ export default function Home() {
   const handleLanguageSelect = (langCode: 'vi' | 'en') => {
     setLanguage(langCode);
     setIsLanguageOpen(false);
+  };
+
+  const handleAttendanceClick = async () => {
+    if (isCheckingAttendance) return;
+    setIsCheckingAttendance(true);
+    try {
+      await request.get(ENDPOINT.GET_DRAWING_TODAY);
+      // 200 means drawing exists for today
+      toast.info(t.home.alreadyAttended);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        // No drawing today — show mood selection
+        setIsMoodModalOpen(true);
+      } else {
+        // Unexpected error — still let them through
+        setIsMoodModalOpen(true);
+      }
+    } finally {
+      setIsCheckingAttendance(false);
+    }
+  };
+
+  const handleMoodSelect = (mood: MoodKey) => {
+    setIsMoodModalOpen(false);
+    router.push(`/diem-danh?mood=${mood}`);
   };
 
   return (
@@ -272,9 +306,16 @@ export default function Home() {
       )}
 
       {/* Login Required Modal */}
-      <LoginRequiredModal 
-        isOpen={isLoginModalOpen} 
-        onClose={() => setIsLoginModalOpen(false)} 
+      <LoginRequiredModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+      />
+
+      {/* Mood Selection Modal */}
+      <MoodSelectModal
+        isOpen={isMoodModalOpen}
+        onClose={() => setIsMoodModalOpen(false)}
+        onSelect={handleMoodSelect}
       />
 
       {/* Navigation Buttons - Upper Right Area */}
@@ -290,6 +331,9 @@ export default function Home() {
                 if ((button.id === "diem-danh" || button.id === "thu-vien" || button.id === "lich-su-cam-xuc") && !isAuthenticated) {
                     e.preventDefault();
                     setIsLoginModalOpen(true);
+                } else if (button.id === "diem-danh" && isAuthenticated) {
+                    e.preventDefault();
+                    handleAttendanceClick();
                 }
               }}
               className={`

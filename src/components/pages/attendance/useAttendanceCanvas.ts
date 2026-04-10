@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { useLanguage } from "@/components/providers/language-provider";
 import { saveDrawingApi } from "./attendanceService";
 import { translations, type Translations } from "@/lib/translations";
+import { toast } from "sonner";
 import Konva from "konva";
 import { floodFill } from "./floodFill";
 
@@ -97,6 +99,8 @@ const INITIAL_LAYERS: LayerData[] = [
 export function useAttendanceCanvas(): UseAttendanceCanvasReturn {
   const stageRef = useRef<Konva.Stage | null>(null);
   const { language } = useLanguage();
+  const searchParams = useSearchParams();
+  const dailyMood = searchParams.get("mood");
   
   // Layer state
   const [layers, setLayers] = useState<LayerData[]>(() => cloneLayers(INITIAL_LAYERS));
@@ -310,19 +314,27 @@ export function useAttendanceCanvas(): UseAttendanceCanvasReturn {
     setIsError(false);
 
     try {
-      const dataUrl = stage.toDataURL({ pixelRatio: 2 });
-      await saveDrawingApi({ imageData: dataUrl, timestamp: new Date() });
-      setSaveMessage(t.saved);
-      setTimeout(() => setSaveMessage(null), 3000);
+      await saveDrawingApi({
+        drawing_data: { layers },
+        daily_mood: dailyMood ?? undefined,
+      });
+      toast.success(t.saved, {
+        duration: 2000,
+        onAutoClose: () => {
+          window.location.href = '/';
+        },
+        onDismiss: () => {
+          window.location.href = '/';
+        },
+      });
     } catch (error) {
       console.error("Failed to save drawing:", error);
       setIsError(true);
-      setSaveMessage(t.errorSave);
-      setTimeout(() => { setSaveMessage(null); setIsError(false); }, 3000);
+      toast.error(t.errorSave, { duration: 4000 });
     } finally {
       setIsSaving(false);
     }
-  }, [t.saved, t.errorSave]);
+  }, [layers, dailyMood, t.saved, t.errorSave]);
 
   return {
     stageRef,

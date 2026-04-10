@@ -54,41 +54,30 @@ export function useSignIn(): UseSignInReturn {
     }
 
     setIsLoading(true);
-    
+
     try {
-      // The API response type is technically void currently in our service, change if needed.
-      // But assuming request.post returns whatever the body is.
       await signInApi({ email, password });
-      
-      // Update the user context after successful login
+
+      // Cookies are set by the server; fetch the user profile to populate auth context.
       await refreshUser();
-      
-      // If the API returns user data, we should use it. 
-      // For now, we assume cookie is set. 
-      // We might need to fetch user profile separately if login doesn't return it.
-      // Or we can manually set user email context if needed.
-      
+
       // Navigate to home
       router.push("/");
     } catch (err) {
       if (err instanceof ApiError) {
-        if (err.status === 400) {
+        if (err.status === 400 || err.status === 422) {
           const detail = err.data?.detail;
           if (detail === "Incorrect email or password") {
-            setError(t.signIn.errorFailed); // Or specific message
-          } else if (detail === "User is not verified") {
-            // Redirect to verify-otp
-            router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
-            return;
+            setError(t.signIn.errorFailed);
           } else if (detail === "Inactive user") {
-             setError("Your account is inactive. Please contact support.");
+            setError("Your account is inactive. Please contact support.");
           } else if (detail) {
-             setError(detail);
+            setError(detail);
           } else {
-             setError(t.signIn.errorFailed);
+            setError(t.signIn.errorFailed);
           }
         } else {
-           setError(t.signIn.errorFailed);
+          setError(t.signIn.errorFailed);
         }
       } else {
         setError(t.signIn.errorFailed);
@@ -96,7 +85,7 @@ export function useSignIn(): UseSignInReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, router, t.signIn]);
+  }, [email, password, router, t.signIn, refreshUser]);
 
   return {
     email,

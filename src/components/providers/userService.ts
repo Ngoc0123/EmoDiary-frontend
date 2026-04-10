@@ -1,13 +1,14 @@
 import { request } from "@/components/http_request";
 import { ENDPOINT } from "@/components/endpoint_config/endpoint_config";
 
+// Matches UserResponse schema from the API
 export interface User {
-  id: string;
+  user_id: string;
   email: string;
-  name: string;
-  avatar?: string;
-  is_verified: boolean;
-  is_active: boolean;
+  username: string;
+  avatar_url: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export async function fetchMeApi(): Promise<User> {

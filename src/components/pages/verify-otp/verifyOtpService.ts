@@ -1,17 +1,15 @@
-import { request } from "@/components/http_request";
-import { ENDPOINT } from "@/components/endpoint_config/endpoint_config";
+// NOTE: The verify-otp and resend-otp endpoints no longer exist in the current API spec.
+// These functions are kept as stubs to avoid breaking the UI, but they will always throw.
 
 export interface VerifyOtpRequest {
   email: string;
   code: string;
 }
 
-export async function verifyOtpApi(data: VerifyOtpRequest): Promise<void> {
-  return request.post(ENDPOINT.VERIFY_OTP, data);
+export async function verifyOtpApi(_data: VerifyOtpRequest): Promise<void> {
+  throw new Error("Verify OTP endpoint is not available in the current API.");
 }
 
-export async function resendOtpApi(email: string): Promise<void> {
-  return request.post(ENDPOINT.RESEND_OTP, null, {
-    params: { email }
-  });
+export async function resendOtpApi(_email: string): Promise<void> {
+  throw new Error("Resend OTP endpoint is not available in the current API.");
 }

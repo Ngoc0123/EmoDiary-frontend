@@ -1,35 +1,28 @@
-// Attendance (Diem Danh) Canvas Service
-// This file contains API calls related to saving drawings
+import { request } from "@/components/http_request";
+import { ENDPOINT } from "@/components/endpoint_config/endpoint_config";
 
 export interface SaveDrawingRequest {
-  imageData: string; // Base64 encoded image
-  userId?: string;
-  timestamp: Date;
+  image_url?: string;
+  drawing_data?: Record<string, unknown>;
+  daily_mood?: string;
+  visibility?: boolean;
+  favorited?: boolean;
 }
 
 export interface SaveDrawingResponse {
-  success: boolean;
-  drawingId: string;
-  message: string;
+  drawing_id: string;
+  user_id: string;
+  image_url: string | null;
+  drawing_data: Record<string, unknown> | null;
+  daily_mood: string | null;
+  visibility: boolean;
+  favorited: boolean;
+  created_at: string;
+  analysis: unknown | null;
 }
 
-export async function saveDrawingApi(data: SaveDrawingRequest): Promise<SaveDrawingResponse> {
-  // TODO: Replace with actual API call
-  // Example:
-  // const response = await fetch('/api/attendance/drawing', {
-  //   method: 'POST',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify(data),
-  // });
-  // if (!response.ok) throw new Error('Failed to save drawing');
-  // return response.json();
-
-  // Simulated API call for now
-  await new Promise((resolve) => setTimeout(resolve, 500));
-  
-  return {
-    success: true,
-    drawingId: `drawing-${Date.now()}`,
-    message: "Drawing saved successfully",
-  };
+export async function saveDrawingApi(
+  data: SaveDrawingRequest
+): Promise<SaveDrawingResponse> {
+  return request.post<SaveDrawingResponse>(ENDPOINT.CREATE_DRAWING, data);
 }

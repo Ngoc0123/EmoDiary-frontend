@@ -62,7 +62,6 @@ export function AttendanceCanvas() {
     setTool,
     setBrushColor,
     setBrushSize,
-    clearCanvas,
     undo,
     redo,
     saveDrawing,
@@ -237,9 +236,10 @@ export function AttendanceCanvas() {
           <h1 className="attendance-topbar__title">{t.drawYourFeeling}</h1>
           <button
             className="attendance-topbar__btn attendance-topbar__btn--outline"
-            onClick={clearCanvas}
+            onClick={saveDrawing}
+            disabled={isSaving}
           >
-            {t.stop}
+            {t.save}
           </button>
           <button
             className="attendance-topbar__btn attendance-topbar__btn--primary"
@@ -269,9 +269,6 @@ export function AttendanceCanvas() {
           >
             <Download className="w-5 h-5" />
           </button>
-          <Link href="/" className="attendance-topbar__icon-btn" title={t.backToHome}>
-            <Home className="w-5 h-5" />
-          </Link>
           <div className="attendance-topbar__avatar">
             <User className="w-5 h-5" />
           </div>

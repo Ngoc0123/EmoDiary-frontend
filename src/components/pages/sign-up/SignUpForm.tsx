@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Eye, EyeOff, Mail, Lock, ArrowRight, Sparkles, Check } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, ArrowRight, Sparkles, Check, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSignUp } from "./useSignUp";
 
 // Password strength check component
 function PasswordCheck({ valid, text }: { valid: boolean; text: string }) {
+
   return (
     <div className={`flex items-center gap-2 text-xs transition-colors ${valid ? 'text-emerald-600' : 'text-slate-400'}`}>
       <div className={`h-4 w-4 rounded-full flex items-center justify-center transition-colors ${valid ? 'bg-emerald-500' : 'bg-slate-200'}`}>
@@ -22,6 +23,8 @@ export function SignUpForm() {
   const {
     email,
     setEmail,
+    username,
+    setUsername,
     password,
     setPassword,
     confirmPassword,
@@ -67,6 +70,23 @@ export function SignUpForm() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
 
+            {/* Username Field */}
+            <div className="space-y-2">
+              <label htmlFor="username" className="text-sm font-medium text-slate-700">
+                {t.username}
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder={t.usernamePlaceholder}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="pl-10 h-12 rounded-xl bg-white/60 border-slate-200 focus:border-emerald-400 focus:ring-emerald-400/20"
+                />
+              </div>
+            </div>
 
             {/* Email Field */}
             <div className="space-y-2">

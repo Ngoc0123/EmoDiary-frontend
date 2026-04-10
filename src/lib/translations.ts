@@ -28,6 +28,19 @@ export interface Translations {
     attendance: string;
     library: string;
     emotionHistory: string;
+    alreadyAttended: string;
+  };
+
+  // Mood Selection
+  mood: {
+    title: string;
+    subtitle: string;
+    sad: string;
+    downmood: string;
+    normal: string;
+    happy: string;
+    pleased: string;
+    angry: string;
   };
   
   // Sign In Page
@@ -144,6 +157,17 @@ export const translations: Record<Language, Translations> = {
       attendance: "Điểm Danh",
       library: "Thư viện",
       emotionHistory: "Lịch sử cảm xúc",
+      alreadyAttended: "Bạn đã điểm danh hôm nay rồi!",
+    },
+    mood: {
+      title: "Hôm nay bạn cảm thấy thế nào?",
+      subtitle: "Chọn cảm xúc của bạn trước khi vẽ",
+      sad: "Buồn",
+      downmood: "Chán nản",
+      normal: "Bình thường",
+      happy: "Vui vẻ",
+      pleased: "Hài lòng",
+      angry: "Tức giận",
     },
     signIn: {
       title: "Chào mừng trở lại!",
@@ -248,6 +272,17 @@ export const translations: Record<Language, Translations> = {
       attendance: "Attendance",
       library: "Library",
       emotionHistory: "Emotion History",
+      alreadyAttended: "You have already attended today!",
+    },
+    mood: {
+      title: "How are you feeling today?",
+      subtitle: "Choose your mood before drawing",
+      sad: "Sad",
+      downmood: "Down",
+      normal: "Normal",
+      happy: "Happy",
+      pleased: "Pleased",
+      angry: "Angry",
     },
     signIn: {
       title: "Welcome back!",

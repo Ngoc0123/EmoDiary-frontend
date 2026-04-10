@@ -1,19 +1,20 @@
 import { request } from "@/components/http_request";
 import { ENDPOINT } from "@/components/endpoint_config/endpoint_config";
 
+// Matches AccountCreate schema from the API
 export interface SignUpRequest {
   email: string;
   password: string;
+  username: string;
 }
 
-export interface UserRead {
-  id: string;
-  email: string | null;
-  is_verified: boolean;
+// Matches AccountResponse schema from the API
+export interface SignUpResponse {
+  user_id: string;
+  email: string;
+  username: string;
   is_active: boolean;
 }
-
-export type SignUpResponse = UserRead;
 
 export async function signUpApi(data: SignUpRequest): Promise<SignUpResponse> {
   return request.post<SignUpResponse>(ENDPOINT.SIGN_UP, data);
