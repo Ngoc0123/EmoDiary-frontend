@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLanguage } from "@/components/providers/language-provider";
-import { saveDrawingApi } from "./attendanceService";
+import { saveDrawingApi, analyzeDrawingApi } from "./attendanceService";
 import { translations, type Translations } from "@/lib/translations";
 import { toast } from "sonner";
 import Konva from "konva";
@@ -314,17 +314,34 @@ export function useAttendanceCanvas(): UseAttendanceCanvasReturn {
     setIsError(false);
 
     try {
-      await saveDrawingApi({
-        drawing_data: { layers },
-        daily_mood: dailyMood ?? undefined,
+      // Convert the canvas to a PNG Blob for upload
+      const dataUrl = stage.toDataURL({ pixelRatio: 2 });
+      const res = await fetch(dataUrl);
+      const imageBlob = await res.blob();
+
+      // Step 1: Save drawing
+      console.log("Step 1: Saving drawing...");
+      const drawingResponse = await saveDrawingApi(imageBlob, {
+        drawingData: { layers },
+        dailyMood: dailyMood ?? undefined,
       });
+      const drawingId = drawingResponse.drawing_id;
+      console.log("Drawing saved with ID:", drawingId);
+
+      // Step 2: Generate analysis
+      console.log("Step 2: Generating analysis...");
+      await analyzeDrawingApi(drawingId);
+      console.log("Analysis generated successfully");
+
+      // Step 3: Navigate to analysis page to fetch all data
+      console.log("Step 3: Navigating to analysis page...");
       toast.success(t.saved, {
-        duration: 2000,
+        duration: 1000,
         onAutoClose: () => {
-          window.location.href = '/';
+          window.location.href = `/diem-danh/analysis?id=${drawingId}`;
         },
         onDismiss: () => {
-          window.location.href = '/';
+          window.location.href = `/diem-danh/analysis?id=${drawingId}`;
         },
       });
     } catch (error) {

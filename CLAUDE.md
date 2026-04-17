@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**NEVER read `.env*` files.** They contain secrets. Reference config keys by name only — never inspect their values.
+
 ## Commands
 
 ```bash
@@ -65,6 +67,7 @@ Each page in `src/app/` is a thin shell that imports a feature component from `s
 - `(auth)` route group: `/sign-in`, `/sign-up`, `/verify-otp`
 - `(homepage)` route group: `/` (home page)
 - `/diem-danh`: Attendance/drawing canvas page
+- `/thu-vien`: Drawing library — 3x3 image grid with pagination
 
 ### Internationalization
 
@@ -79,7 +82,16 @@ The `/diem-danh` page is a multi-layer canvas drawing app built with **react-kon
 - `AttendanceCanvas.tsx`: Full page component combining toolbar + canvas.
 - `floodFill.ts`: Canvas flood-fill algorithm used by the fill tool.
 - The fill tool renders fills as base64 `dataURL` images stored in the layer's `items` array alongside line data.
-- `attendanceService.ts`: Save API — currently **stubbed** with a simulated delay; needs a real endpoint implementation.
+- `attendanceService.ts`: Sends the canvas image as multipart `FormData` to `POST /drawings/`. Uses `fetch` directly (not the shared `request` helper) because multipart uploads need the browser to set `Content-Type` with the boundary automatically.
+
+### Library Feature
+
+The `/thu-vien` page displays the user's saved drawings in a paginated 3x3 grid, ordered newest first.
+
+- `useLibrary.ts`: Hook managing page state, fetching via `fetchDrawingsApi(page, size)`.
+- `LibraryPage.tsx`: Grid UI with pagination controls (Previous/Next).
+- `libraryService.ts`: Calls `GET /api/v1/drawings/?page=N&size=9`. Uses the shared `request` helper.
+- Images load via presigned S3 URLs returned by the backend (1 hour expiry).
 
 ### UI Components
 

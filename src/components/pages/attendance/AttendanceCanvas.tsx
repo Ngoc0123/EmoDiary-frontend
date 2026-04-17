@@ -2,7 +2,7 @@
 
 import "./attendance.css";
 import Link from "next/link";
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
 import {
   Pencil,
@@ -19,9 +19,9 @@ import {
   Plus,
   Eye,
   EyeOff,
-  Settings,
   Trash2,
-  User,
+  Save,
+  Layers,
 } from "lucide-react";
 import { useAttendanceCanvas, COLORS } from "./useAttendanceCanvas";
 
@@ -37,13 +37,13 @@ const KonvaCanvas = dynamic(
   }
 );
 
-// Default palette colors matching design
+// Default palette colors
 const PALETTE_COLORS = [
+  "#000000", // Black
   "#F97316", // Orange
   "#EF4444", // Red
   "#3B82F6", // Blue
   "#22C55E", // Green
-  "#EAB308", // Yellow
 ];
 
 export function AttendanceCanvas() {
@@ -84,7 +84,8 @@ export function AttendanceCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [baseScale, setBaseScale] = useState(1);
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const [canvasZoom, setCanvasZoom] = useState(100);
+  const [showSharePopup, setShowSharePopup] = useState(false);
+  const [canvasZoom] = useState(100);
   const [activeToolId, setActiveToolId] = useState("brush");
 
   // Sync activeToolId when hook auto-switches tool (e.g. picker → brush)
@@ -162,23 +163,6 @@ export function AttendanceCanvas() {
     }
   };
 
-
-  // Estimate file size
-  const estimateFileSize = useCallback(() => {
-    const stage = stageRef.current;
-    if (!stage) return "0 KB";
-    try {
-      const dataUrl = stage.toDataURL({ pixelRatio: 1 });
-      const sizeBytes = Math.round((dataUrl.length * 3) / 4);
-      if (sizeBytes > 1024 * 1024) {
-        return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
-      }
-      return `${Math.round(sizeBytes / 1024)} KB`;
-    } catch {
-      return "-- KB";
-    }
-  }, [stageRef]);
-
   // Custom cursor generation — circle matching brush size
   const canvasCursor = useMemo(() => {
     if (typeof window === 'undefined') return 'crosshair';
@@ -196,14 +180,12 @@ export function AttendanceCanvas() {
     const center = size / 2;
     const radius = visualSize / 2;
 
-    // Outer circle
     ctx.beginPath();
     ctx.arc(center, center, radius, 0, Math.PI * 2);
     ctx.strokeStyle = tool === 'eraser' ? '#888' : brushColor;
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Center dot
     ctx.beginPath();
     ctx.arc(center, center, 1.2, 0, Math.PI * 2);
     ctx.fillStyle = '#333';
@@ -212,6 +194,10 @@ export function AttendanceCanvas() {
     const hotspot = Math.floor(center);
     return `url(${canvasEl.toDataURL()}) ${hotspot} ${hotspot}, crosshair`;
   }, [tool, brushSize, currentScale, brushColor]);
+
+  // Slider percentage for visual fill
+  const brushSizePct = ((brushSize - 1) / 49) * 100;
+  const opacityPct = brushOpacity * 100;
 
   // Left sidebar tools
   const sidebarTools = [
@@ -227,27 +213,15 @@ export function AttendanceCanvas() {
       {/* ===== TOP BAR ===== */}
       <header className="attendance-topbar">
         <div className="attendance-topbar__left">
-          <div className="attendance-topbar__logo">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="#F97316"/>
-              <line x1="4" y1="20" x2="10" y2="14" stroke="#F97316" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <h1 className="attendance-topbar__title">{t.drawYourFeeling}</h1>
-          <button
-            className="attendance-topbar__btn attendance-topbar__btn--outline"
-            onClick={saveDrawing}
-            disabled={isSaving}
+          <Link href="/" className="attendance-topbar__home" title={t.backToHome}>
+            <Home className="w-8 h-8" />
+          </Link>
+          <h1
+            className="attendance-topbar__title"
+            style={{ fontFamily: "var(--font-pacifico)" }}
           >
-            {t.save}
-          </button>
-          <button
-            className="attendance-topbar__btn attendance-topbar__btn--primary"
-            onClick={saveDrawing}
-            disabled={isSaving}
-          >
-            {isSaving ? t.saving : "Done"}
-          </button>
+            {t.drawYourFeeling}
+          </h1>
           {saveMessage && (
             <span className={`attendance-topbar__message ${isError ? "attendance-topbar__message--error" : ""}`}>
               {isError ? "✕ " : "✓ "} {saveMessage}
@@ -255,23 +229,66 @@ export function AttendanceCanvas() {
           )}
         </div>
         <div className="attendance-topbar__right">
+          {/* Share/Download toggle */}
           <button
             className="attendance-topbar__icon-btn"
-            onClick={handleShare}
+            onClick={() => setShowSharePopup(!showSharePopup)}
             title={t.share}
           >
-            <Share2 className="w-5 h-5" />
+            <Share2 className="w-8 h-8" />
           </button>
+
+          {/* Save */}
           <button
-            className="attendance-topbar__icon-btn"
-            onClick={handleDownload}
-            title={t.download}
+            className="attendance-topbar__icon-btn attendance-topbar__icon-btn--save"
+            onClick={saveDrawing}
+            disabled={isSaving}
+            title={t.save}
           >
-            <Download className="w-5 h-5" />
+            <Save className="w-8 h-8" />
           </button>
-          <div className="attendance-topbar__avatar">
-            <User className="w-5 h-5" />
-          </div>
+
+          {/* Done */}
+          <button
+            className="attendance-topbar__icon-btn attendance-topbar__icon-btn--done"
+            onClick={saveDrawing}
+            disabled={isSaving}
+            title={isSaving ? t.saving : "Done"}
+          >
+            <Check className="w-8 h-8" />
+          </button>
+
+          {/* Share popup */}
+          {showSharePopup && (
+            <>
+              <div
+                className="attendance-overlay"
+                onClick={() => setShowSharePopup(false)}
+              />
+              <div className="attendance-share-popup">
+                <button
+                  className="attendance-share-popup__item"
+                  onClick={() => {
+                    handleShare();
+                    setShowSharePopup(false);
+                  }}
+                >
+                  <Share2 className="w-6 h-6" />
+                  {t.share}
+                </button>
+                <button
+                  className="attendance-share-popup__item"
+                  onClick={() => {
+                    handleDownload();
+                    setShowSharePopup(false);
+                  }}
+                >
+                  <Download className="w-6 h-6" />
+                  {t.download}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </header>
 
@@ -293,7 +310,7 @@ export function AttendanceCanvas() {
                   }`}
                   title={toolItem.label}
                 >
-                  <IconComponent className="w-5 h-5" />
+                  <IconComponent className="w-6 h-6" />
                 </button>
               );
             })}
@@ -307,7 +324,7 @@ export function AttendanceCanvas() {
               className={`attendance-sidebar__action ${!canUndo ? "attendance-sidebar__action--disabled" : ""}`}
               title={t.undo}
             >
-              <Undo2 className="w-5 h-5" />
+              <Undo2 className="w-6 h-6" />
             </button>
             <button
               onClick={redo}
@@ -315,7 +332,7 @@ export function AttendanceCanvas() {
               className={`attendance-sidebar__action ${!canRedo ? "attendance-sidebar__action--disabled" : ""}`}
               title={t.redo}
             >
-              <Redo2 className="w-5 h-5" />
+              <Redo2 className="w-6 h-6" />
             </button>
           </div>
         </aside>
@@ -346,22 +363,17 @@ export function AttendanceCanvas() {
         {/* ===== RIGHT PANEL (Layers) ===== */}
         <aside className="attendance-layers">
           <div className="attendance-layers__header">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="12 2 2 7 12 12 22 7 12 2" />
-              <polyline points="2 17 12 22 22 17" />
-              <polyline points="2 12 12 17 22 12" />
-            </svg>
+            <Layers className="w-6 h-6" />
             <span>{t.layers}</span>
             <button
               className="attendance-layers__add"
               onClick={addLayer}
               title="Add Layer"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-5 h-5" />
             </button>
           </div>
           <div className="attendance-layers__list">
-            {/* Render layers in reverse order (topmost first) */}
             {[...layers].reverse().map((layer) => {
               const isActive = layer.id === activeLayerId;
               return (
@@ -390,7 +402,7 @@ export function AttendanceCanvas() {
                       }}
                       title="Delete Layer"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   )}
                   <button
@@ -401,27 +413,14 @@ export function AttendanceCanvas() {
                     }}
                   >
                     {layer.visible ? (
-                      <Eye className="w-4 h-4" />
+                      <Eye className="w-5 h-5" />
                     ) : (
-                      <EyeOff className="w-4 h-4" />
+                      <EyeOff className="w-5 h-5" />
                     )}
                   </button>
                 </div>
               );
             })}
-          </div>
-
-          {/* Canvas Info */}
-          <div className="attendance-canvas-info">
-            <h4 className="attendance-canvas-info__title">CANVAS INFO</h4>
-            <div className="attendance-canvas-info__row">
-              <span>Dimensions</span>
-              <span>{A4_WIDTH} × {A4_HEIGHT}</span>
-            </div>
-            <div className="attendance-canvas-info__row">
-              <span>File Size</span>
-              <span>{estimateFileSize()}</span>
-            </div>
           </div>
         </aside>
       </div>
@@ -447,7 +446,7 @@ export function AttendanceCanvas() {
               >
                 {isActive && (
                   <Check
-                    className="w-3 h-3"
+                    className="w-4 h-4"
                     style={{
                       color:
                         color === "#EAB308" || color === "#22C55E"
@@ -473,7 +472,7 @@ export function AttendanceCanvas() {
           >
             {isCustomColor ? (
               <Check
-                className="w-3 h-3"
+                className="w-4 h-4"
                 style={{
                   color:
                     brushColor === "#FFFFFF" || brushColor === "#FFEAA7"
@@ -482,7 +481,7 @@ export function AttendanceCanvas() {
                 }}
               />
             ) : (
-              <Plus className="w-4 h-4" />
+              <Plus className="w-5 h-5" />
             )}
           </button>
         </div>
@@ -491,7 +490,7 @@ export function AttendanceCanvas() {
 
         {/* Brush Size */}
         <div className="attendance-bottombar__control">
-          <span className="attendance-bottombar__label">BRUSH SIZE</span>
+          <span className="attendance-bottombar__label">{t.brushSize}</span>
           <div className="attendance-bottombar__slider-group">
             <input
               type="range"
@@ -500,6 +499,7 @@ export function AttendanceCanvas() {
               value={brushSize}
               onChange={(e) => setBrushSize(parseInt(e.target.value))}
               className="attendance-bottombar__slider"
+              style={{ '--slider-pct': `${brushSizePct}%` } as React.CSSProperties}
             />
             <span className="attendance-bottombar__value">{brushSize}px</span>
           </div>
@@ -509,7 +509,7 @@ export function AttendanceCanvas() {
 
         {/* Opacity */}
         <div className="attendance-bottombar__control">
-          <span className="attendance-bottombar__label">OPACITY</span>
+          <span className="attendance-bottombar__label">{t.opacity}</span>
           <div className="attendance-bottombar__slider-group">
             <input
               type="range"
@@ -518,19 +518,13 @@ export function AttendanceCanvas() {
               value={brushOpacity * 100}
               onChange={(e) => setBrushOpacity(parseInt(e.target.value) / 100)}
               className="attendance-bottombar__slider attendance-bottombar__slider--opacity"
+              style={{ '--slider-pct': `${opacityPct}%` } as React.CSSProperties}
             />
             <span className="attendance-bottombar__value">
               {Math.round(brushOpacity * 100)}%
             </span>
           </div>
         </div>
-
-        <div className="attendance-bottombar__divider" />
-
-        {/* Settings */}
-        <button className="attendance-bottombar__settings" title="Settings">
-          <Settings className="w-5 h-5" />
-        </button>
       </footer>
 
       {/* ===== COLOR PICKER POPUP ===== */}

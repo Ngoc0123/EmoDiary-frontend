@@ -12,6 +12,7 @@ export const ENDPOINT = {
     UPDATE_ME: `${BACKEND_URL}/api/v1/users/me`,
 
     // Drawings
+    LIST_DRAWINGS: `${BACKEND_URL}/api/v1/drawings/`,
     CREATE_DRAWING: `${BACKEND_URL}/api/v1/drawings/`,
     GET_DRAWING_TODAY: `${BACKEND_URL}/api/v1/drawings/today`,
     GET_DRAWING: (drawingId: string) => `${BACKEND_URL}/api/v1/drawings/${drawingId}`,

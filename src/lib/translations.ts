@@ -107,6 +107,19 @@ export interface Translations {
     resendFailed: string;
   };
 
+  // Library Page
+  library: {
+    title: string;
+    empty: string;
+    loading: string;
+    errorLoad: string;
+    page: string;
+    of: string;
+    previous: string;
+    next: string;
+    showFavoriteOnly: string;
+  };
+
   // Attendance Page
   attendance: {
     title: string;
@@ -156,7 +169,7 @@ export const translations: Record<Language, Translations> = {
     home: {
       attendance: "Điểm Danh",
       library: "Thư viện",
-      emotionHistory: "Lịch sử cảm xúc",
+      emotionHistory: "Lịch sử",
       alreadyAttended: "Bạn đã điểm danh hôm nay rồi!",
     },
     mood: {
@@ -225,6 +238,17 @@ export const translations: Record<Language, Translations> = {
       resendSuccess: "Đã gửi lại mã OTP mới!",
       resendFailed: "Gửi lại mã thất bại. Vui lòng thử lại sau.",
     },
+    library: {
+      title: "Thư viện tranh",
+      empty: "Bạn chưa có bức tranh nào",
+      loading: "Đang tải...",
+      errorLoad: "Không thể tải tranh. Thử lại!",
+      page: "Trang",
+      of: "/",
+      previous: "Trước",
+      next: "Tiếp",
+      showFavoriteOnly: "Chỉ xem yêu thích",
+    },
     attendance: {
       title: "Điểm Danh",
       subtitle: "Vẽ bất cứ điều gì bạn muốn!",
@@ -269,9 +293,9 @@ export const translations: Record<Language, Translations> = {
       unmute: "Unmute",
     },
     home: {
-      attendance: "Attendance",
+      attendance: "Check In",
       library: "Library",
-      emotionHistory: "Emotion History",
+      emotionHistory: "History",
       alreadyAttended: "You have already attended today!",
     },
     mood: {
@@ -339,6 +363,17 @@ export const translations: Record<Language, Translations> = {
       errorFailed: "Verification failed. Code may be incorrect or expired.",
       resendSuccess: "New OTP code sent!",
       resendFailed: "Failed to resend code. Please try again later.",
+    },
+    library: {
+      title: "Drawing Library",
+      empty: "You don't have any drawings yet",
+      loading: "Loading...",
+      errorLoad: "Failed to load drawings. Retry!",
+      page: "Page",
+      of: "/",
+      previous: "Previous",
+      next: "Next",
+      showFavoriteOnly: "Show Favorite Only",
     },
     attendance: {
       title: "Attendance",
